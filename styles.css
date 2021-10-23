@@ -1,9 +1,6 @@
-/* body {
-  background: rgba(51, 51, 51, 1);
-  color: #ffffff;
-  font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Hiragino Sans GB', 'Heiti SC',
-    'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
-} */
+body {
+  touch-action: none;
+}
 
 .content {
   position: fixed;
@@ -12,7 +9,6 @@
   left: 0;
   top: 0;
   margin: 6px;
-  /* background: rgba(51, 51, 51, 1); */
 }
 
 .controllerButton {
