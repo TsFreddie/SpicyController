@@ -45,10 +45,10 @@ class Button {
     this.element.style.width = width + '%';
     this.element.style.height = height + '%';
 
-    this.element.addEventListener('pointerdown', () => {
+    this.element.addEventListener('touchstart', () => {
       api.buttons.write([this.btname, 1]);
     });
-    this.element.addEventListener('pointerup', () => {
+    this.element.addEventListener('touchend', () => {
       api.buttons.write([this.btname, 0]);
     });
     root.appendChild(this.element);
