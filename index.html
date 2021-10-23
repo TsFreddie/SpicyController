@@ -1,0 +1,42 @@
+<head>
+  <meta name="viewport" content="width=device-width" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <link href="mini-dark.min.css" rel="stylesheet" />
+  <link href="styles.css" rel="stylesheet" />
+  <script src="spiceapi.js"></script>
+  <script src="input.js"></script>
+</head>
+<body>
+  <div class="content" id="content">
+    <div class="window" id="connectWin">
+      <h1 class="center">Spice Controller</h1>
+      <div class="center">
+        <input type="text" id="address" placeholder="Address" />
+      </div>
+      <div class="center">
+        <input type="text" id="port" placeholder="Port" />
+      </div>
+      <div class="center">
+        <input type="password" id="password" placeholder="Password" />
+      </div>
+      <div class="center">
+        <button onclick="connect()" id="connect">Connect</button>
+      </div>
+    </div>
+
+    <div class="window" id="controllerWin" style="display: none;">
+      <h1 class="center">Select Controls</h1>
+      <!-- <button onclick="cloud('SDVX')">SDVX</button> -->
+      <p>Custom:
+        <div class="center">
+          <textarea id="code" name="code" rows="5" cols="33"></textarea>
+        </div>
+        <div class="center">
+          <button onclick="customControl()" id="import">Import</button>
+        </div>
+      </p>
+    </div>
+
+    <div class="controller" id="controller" style="display: none;"></div>
+  </div>
+</body>

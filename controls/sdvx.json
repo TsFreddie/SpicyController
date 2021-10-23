@@ -1,0 +1,64 @@
+{
+  "width": 397,
+  "height": 212,
+  "offsetX": 4,
+  "offsetY": 4,
+  "controls": [
+    {
+      "type": "button",
+      "name": "Start",
+      "x": 178,
+      "y": 0,
+      "width": 33,
+      "height": 33
+    },
+    {
+      "type": "button",
+      "name": "BT-A",
+      "x": 48,
+      "y": 79,
+      "width": 62,
+      "height": 62
+    },
+    {
+      "type": "button",
+      "name": "BT-B",
+      "x": 125,
+      "y": 79,
+      "width": 62,
+      "height": 62
+    },
+    {
+      "type": "button",
+      "name": "BT-C",
+      "x": 202,
+      "y": 79,
+      "width": 62,
+      "height": 62
+    },
+    {
+      "type": "button",
+      "name": "BT-D",
+      "x": 279,
+      "y": 79,
+      "width": 62,
+      "height": 62
+    },
+    {
+      "type": "button",
+      "name": "FX-L",
+      "x": 92,
+      "y": 171,
+      "width": 50,
+      "height": 33
+    },
+    {
+      "type": "button",
+      "name": "FX-R",
+      "x": 247,
+      "y": 171,
+      "width": 50,
+      "height": 33
+    }
+  ]
+}
