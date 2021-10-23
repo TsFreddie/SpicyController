@@ -82,7 +82,7 @@ const SpiceAPI = (() => {
       this.buttons = new Buttons(this);
     }
 
-    connect(host, port, pass) {
+    connect(host, port, pass, secure = true) {
       if (pass != null) {
         this.pass = new RC4(pass);
       } else {
@@ -91,73 +91,80 @@ const SpiceAPI = (() => {
       console.log('connecting');
       try {
         this.ws = new WebSocket(`ws://${host}:${port + 1}`);
+        this.ws.binaryType = 'arraybuffer';
         this.ws.onopen = async () => {
-          console.log('spice api connected');
+          if (secure) {
+            const timeout = setTimeout(() => {
+              this.ws.close();
+              console.log('spice api timed out');
+              if (this.onerror) this.onerror('timeout');
+            }, 1000);
 
-          const timeout = setTimeout(() => {
-            this.ws.close();
-            console.log('spice api timed out');
-            if (this.onerror) this.onerror('timeout');
-          }, 1000);
-
-          const res = await this.requestWithID(
-            Math.floor(Math.random() * 2147483648),
-            'control',
-            'session_refresh'
-          );
-          clearTimeout(timeout);
-          console.log(res[0]);
-          this.changePass(res);
+            const res = await this.requestWithID(
+              Math.floor(Math.random() * 2147483648),
+              'control',
+              'session_refresh'
+            );
+            clearTimeout(timeout);
+            this.changePass(res);
+          }
 
           if (this.onopen) {
+            console.log('spice api connected');
             this.onopen();
           }
         };
         this.ws.onmessage = msg => {
-          const reader = new FileReader();
-          reader.readAsArrayBuffer(msg.data);
-          reader.onload = () => {
-            const content = reader.result;
-            if (content instanceof ArrayBuffer) {
-              if (this.dataLen + content.byteLength >= BUFFER_SIZE) {
-                this.close();
-                return;
-              }
+          console.log('get');
+          const content = msg.data;
 
-              const data = new Uint8Array(content);
-              if (this.pass) {
-                this.pass.crypt(data);
-              }
+          if (content instanceof ArrayBuffer) {
+            if (this.dataLen + content.byteLength >= BUFFER_SIZE) {
+              this.close();
+              return;
+            }
 
-              this.dataBuffer.set(data, this.dataLen);
+            const data = new Uint8Array(content);
+            const predec = new TextDecoder('utf-8').decode(data);
+            if (this.pass) {
+              console.log('decrypt');
+              this.pass.crypt(data);
+            }
+            const postdec = new TextDecoder('utf-8').decode(data);
 
-              this.dataLen += content.byteLength;
+            this.dataBuffer.set(data, this.dataLen);
+            this.dataLen += content.byteLength;
+            console.log('stored');
+            const buf = this.dataBuffer.subarray(0, this.dataLen);
+            const text = new TextDecoder('utf-8').decode(buf);
+            console.log(predec);
+            console.log(postdec);
+            console.log(text);
 
-              for (let i = 0; i < this.dataLen; i++) {
-                if (this.dataBuffer[i] === 0) {
-                  const msg = this.dataBuffer.subarray(0, i);
+            for (let i = 0; i < this.dataLen; i++) {
+              if (this.dataBuffer[i] === 0) {
+                const msg = this.dataBuffer.subarray(0, i);
 
-                  if (msg.length > 0) {
-                    // convert msg to JSON
-                    try {
-                      const json = new TextDecoder('utf-8').decode(msg);
-                      const obj = JSON.parse(json);
-                      if (this.callbacks[obj.id]) {
-                        this.callbacks[obj.id](obj.data, obj.errors);
-                        delete this.callbacks[obj.id];
-                      }
-                    } catch (e) {
-                      console.error(e);
+                if (msg.length > 0) {
+                  // convert msg to JSON
+                  try {
+                    const json = new TextDecoder('utf-8').decode(msg);
+                    const obj = JSON.parse(json);
+                    if (this.callbacks[obj.id]) {
+                      this.callbacks[obj.id](obj.data, obj.errors);
+                      delete this.callbacks[obj.id];
                     }
+                  } catch (e) {
+                    console.error(e);
                   }
-
-                  // remove range [0, i) from dataBuffer
-                  this.dataBuffer.set(this.dataBuffer.subarray(i + 1, this.dataLen));
-                  this.dataLen = this.dataLen - i - 1;
                 }
+
+                // remove range [0, i) from dataBuffer
+                this.dataBuffer.set(this.dataBuffer.subarray(i + 1, this.dataLen));
+                this.dataLen = this.dataLen - i - 1;
               }
             }
-          };
+          }
         };
         this.ws.onclose = e => {
           console.log('connection closed');

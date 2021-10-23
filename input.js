@@ -45,10 +45,12 @@ class Button {
     this.element.style.width = width + '%';
     this.element.style.height = height + '%';
 
-    this.element.addEventListener('touchstart', () => {
+    this.element.addEventListener('touchstart', e => {
+      e.preventDefault();
       api.buttons.write([this.btname, 1]);
     });
-    this.element.addEventListener('touchend', () => {
+    this.element.addEventListener('touchend', e => {
+      e.preventDefault();
       api.buttons.write([this.btname, 0]);
     });
     root.appendChild(this.element);
@@ -208,6 +210,14 @@ window.addEventListener('load', () => {
 
   const custom = load('custom');
   if (custom) document.getElementById('code').value = custom;
+
+  document.addEventListener('touchstart', e => {
+    e.preventDefault();
+  });
+
+  document.addEventListener('touchend', e => {
+    e.preventDefault();
+  });
 });
 
 window.addEventListener('resize', () => {
