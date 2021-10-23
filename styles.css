@@ -1,6 +1,5 @@
 body {
-  -ms-touch-action: manipulation;
-  touch-action: manipulation;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -20,6 +19,7 @@ body {
   border-radius: 3px;
   margin-left: -1px;
   margin-top: -1px;
+  touch-action: manipulation;
 }
 
 .window {
