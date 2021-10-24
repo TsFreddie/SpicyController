@@ -1,7 +1,7 @@
 // ----------------
 //      GLOBAL
 // ----------------
-const api = new SpiceAPI();
+const connections = [];
 const controller = {
   data: null,
 };
@@ -27,6 +27,44 @@ function hide(id) {
   document.getElementById(id).style.display = 'none';
 }
 
+// -----------------
+//  CONNECTION POOL
+// -----------------
+async function getConnection() {
+  for (const conn of connections) {
+    if (!conn.waitingForResponse) {
+      if (conn.isConnected()) {
+        return conn;
+      } else {
+        const address = document.getElementById('address');
+        const port = document.getElementById('port');
+        const password = document.getElementById('password');
+        return new Promise(resolve => {
+          conn.connect(address.value, parseInt(port.value), password.value);
+          conn.onopen = () => {
+            resolve(conn);
+          };
+        });
+      }
+    }
+  }
+
+  const address = document.getElementById('address');
+  const port = document.getElementById('port');
+  const password = document.getElementById('password');
+  const conn = new SpiceAPI();
+  connections.push(conn);
+  return new Promise((resolve, reject) => {
+    conn.connect(address.value, parseInt(port.value), password.value);
+    conn.onopen = () => {
+      resolve(conn);
+    };
+    conn.onerror = e => {
+      reject(e);
+    };
+  });
+}
+
 // ----------------
 //     CONTROLS
 // ----------------
@@ -39,26 +77,37 @@ class Button {
     this.height = height;
     this.btname = btname;
     this.element = document.createElement('div');
+    this.type = 'Button';
     this.element.className = 'controllerButton';
     this.element.style.left = x + '%';
     this.element.style.top = y + '%';
     this.element.style.width = width + '%';
     this.element.style.height = height + '%';
+    this.conn = new SpiceAPI();
 
-    this.element.addEventListener('touchstart', e => {
-      e.preventDefault();
-      api.buttons.write([this.btname, 1]);
-    });
-    this.element.addEventListener('touchend', e => {
-      e.preventDefault();
-      api.buttons.write([this.btname, 0]);
-    });
+    this.pressed = false;
+    this.processed = false;
+
     root.appendChild(this.element);
   }
 
   destroy() {
-    api.buttons.reset(this.btname);
+    connections.buttons.reset(this.btname);
     root.removeChild(this.element);
+  }
+
+  down() {
+    this.pressed = true;
+    getConnection().then(conn => {
+      conn.buttons.write([this.btname, 1]);
+    });
+  }
+
+  up() {
+    this.pressed = false;
+    getConnection().then(conn => {
+      conn.buttons.write([this.btname, 0]);
+    });
   }
 }
 
@@ -119,7 +168,11 @@ function clearControls() {
 // ----------------
 
 function disconnect() {
-  api.close();
+  for (const conn of connections) {
+    conn.close();
+  }
+  connections.splice(0, connections.length);
+
   const enable = elem => {
     elem.disabled = false;
   };
@@ -134,10 +187,12 @@ function disconnect() {
   enable(document.getElementById('connect'));
 
   show('connectWin');
+  hide('controllerWin');
   hide('controller');
+  endControl();
 }
 
-function connect() {
+async function connect() {
   const disable = elem => {
     elem.disabled = true;
   };
@@ -151,19 +206,16 @@ function connect() {
   disable(password);
   disable(document.getElementById('connect'));
 
-  api.onopen = () => {
-    hide('connectWin');
-    showControlWindow();
-  };
-
-  api.onerror = e => {
-    console.error(e);
-    disconnect();
-  };
-
   save('address', address.value);
   save('port', port.value);
-  api.connect(address.value, parseInt(port.value), password.value);
+  try {
+    await getConnection();
+    hide('connectWin');
+    showControlWindow();
+  } catch (e) {
+    console.error(e);
+    disconnect();
+  }
 }
 
 // -------------------
@@ -174,6 +226,7 @@ function showControlWindow() {
   clearControls();
   show('controllerWin');
   hide('controller');
+  endControl();
 }
 
 function hideControlWindow() {
@@ -181,7 +234,6 @@ function hideControlWindow() {
 }
 
 function customControl() {
-  console.log(document.getElementById('code'));
   try {
     const text = document.getElementById('code').value;
     const data = JSON.parse(text);
@@ -189,9 +241,56 @@ function customControl() {
     save('custom', text);
     hideControlWindow();
     show('controller');
+    startControl();
   } catch (e) {
     console.error(e);
   }
+}
+
+// ----------------
+//   CONTORL HOOK
+// ----------------
+
+function getControl(x, y) {
+  return controls.find(control => {
+    const rect = control.element.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  });
+}
+
+async function processControl(e) {
+  e.preventDefault();
+  console.log(e);
+  if (e.changedTouches) {
+    for (const touch of e.changedTouches) {
+      const x = touch.clientX;
+      const y = touch.clientY;
+
+      const control = getControl(x, y);
+
+      if (!control) continue;
+
+      if (control.type === 'Button') {
+        if (touch.force > 0 && !control.pressed) {
+          control.down();
+        } else if (touch.force <= 0 && control.pressed) {
+          control.up();
+        }
+      }
+    }
+  }
+}
+
+function startControl() {
+  document.addEventListener('touchstart', processControl);
+  document.addEventListener('touchend', processControl);
+  document.addEventListener('touchmove', processControl);
+}
+
+function endControl() {
+  document.removeEventListener('touchstart', processControl);
+  document.removeEventListener('touchend', processControl);
+  document.removeEventListener('touchmove', processControl);
 }
 
 // ----------------
@@ -210,25 +309,6 @@ window.addEventListener('load', () => {
 
   const custom = load('custom');
   if (custom) document.getElementById('code').value = custom;
-
-  document.addEventListener('touchstart', event => {
-    if (event.touches.length > 1) {
-      event.preventDefault();
-    }
-  });
-
-  let lastTouchEnd = 0;
-  document.addEventListener(
-    'touchend',
-    event => {
-      const now = new Date().getTime();
-      if (now - lastTouchEnd <= 300) {
-        event.preventDefault();
-      }
-      lastTouchEnd = now;
-    },
-    false
-  );
 });
 
 window.addEventListener('resize', () => {

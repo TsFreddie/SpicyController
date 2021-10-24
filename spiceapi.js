@@ -73,7 +73,8 @@ const SpiceAPI = (() => {
       this.dataLen = 0;
 
       this.lastId = 0;
-      this.callbacks = {};
+      this.requests = [];
+      this.waitingForResponse = false;
 
       this.onopen = null;
       this.onerror = null;
@@ -83,6 +84,10 @@ const SpiceAPI = (() => {
     }
 
     connect(host, port, pass, secure = true) {
+      this.dataLen = 0;
+      this.requests.splice(0, this.requests.length);
+      this.waitingForResponse = false;
+
       if (pass != null) {
         this.pass = new RC4(pass);
       } else {
@@ -95,7 +100,7 @@ const SpiceAPI = (() => {
         this.ws.onopen = async () => {
           if (secure) {
             const timeout = setTimeout(() => {
-              this.ws.close();
+              this.close();
               console.log('spice api timed out');
               if (this.onerror) this.onerror('timeout');
             }, 1000);
@@ -125,22 +130,14 @@ const SpiceAPI = (() => {
             }
 
             const data = new Uint8Array(content);
-            const predec = new TextDecoder('utf-8').decode(data);
             if (this.pass) {
-              console.log('decrypt');
               this.pass.crypt(data);
             }
-            const postdec = new TextDecoder('utf-8').decode(data);
 
             this.dataBuffer.set(data, this.dataLen);
             this.dataLen += content.byteLength;
-            console.log('stored');
-            const buf = this.dataBuffer.subarray(0, this.dataLen);
-            const text = new TextDecoder('utf-8').decode(buf);
-            console.log(predec);
-            console.log(postdec);
-            console.log(text);
 
+            let processed = false;
             for (let i = 0; i < this.dataLen; i++) {
               if (this.dataBuffer[i] === 0) {
                 const msg = this.dataBuffer.subarray(0, i);
@@ -150,11 +147,18 @@ const SpiceAPI = (() => {
                   try {
                     const json = new TextDecoder('utf-8').decode(msg);
                     const obj = JSON.parse(json);
-                    if (this.callbacks[obj.id]) {
-                      this.callbacks[obj.id](obj.data, obj.errors);
-                      delete this.callbacks[obj.id];
+                    let req = null;
+                    while ((req == null || req.body.id != obj.id) && this.requests.length > 0) {
+                      req = this.requests.shift();
+                      processed = true;
+                    }
+                    if (req) {
+                      req.callback(obj.data, obj.errors);
                     }
                   } catch (e) {
+                    // clear request
+                    this.dataLen = 0;
+                    this.requests.splice(0, this.requests.length);
                     console.error(e);
                   }
                 }
@@ -163,6 +167,11 @@ const SpiceAPI = (() => {
                 this.dataBuffer.set(this.dataBuffer.subarray(i + 1, this.dataLen));
                 this.dataLen = this.dataLen - i - 1;
               }
+            }
+
+            if (processed) {
+              this.waitingForResponse = false;
+              this.processRequest();
             }
           }
         };
@@ -175,12 +184,12 @@ const SpiceAPI = (() => {
           if (this.onerror) {
             this.onerror(e);
           }
-          this.ws.close();
+          this.close();
         };
       } catch (e) {
         if (this.onerror) {
           this.onerror(e);
-          if (this.ws) this.ws.close();
+          this.close();
         }
       }
     }
@@ -190,32 +199,58 @@ const SpiceAPI = (() => {
     }
 
     close() {
-      this.ws.close();
+      this.waitingForResponse = false;
+      if (this.ws) this.ws.close();
+      this.dataLen = 0;
     }
 
-    requestWithID(id, module, func, ...params) {
-      const json = JSON.stringify({ id, module, function: func, params: params || [] }) + '\x00';
-      const buf = new TextEncoder('utf-8').encode(json);
+    isConnected() {
+      return this.ws.readyState === WebSocket.OPEN;
+    }
 
-      if (this.pass) {
-        this.pass.crypt(buf);
-      }
-
+    async requestWithID(id, module, func, ...params) {
       const promise = new Promise((resolve, reject) => {
-        this.callbacks[id] = (data, errors) => {
-          if (errors && Array.isArray(errors) && errors.length > 0) {
-            reject(errors);
-          } else {
-            resolve(data);
-          }
+        const request = {
+          body: {
+            id: id,
+            module: module,
+            function: func,
+            params: params || [],
+          },
+          callback: (data, errors) => {
+            if (errors && Array.isArray(errors) && errors.length > 0) {
+              reject(errors);
+            } else {
+              resolve(data);
+            }
+          },
         };
+        this.requests.push(request);
+        this.processRequest();
       });
 
-      this.ws.send(buf);
       return promise;
     }
 
-    request(module, func, ...params) {
+    processRequest() {
+      console.log(this.requests.length);
+      if (
+        this.ws.readyState === WebSocket.OPEN &&
+        this.requests.length > 0 &&
+        this.waitingForResponse === false
+      ) {
+        this.waitingForResponse = true;
+        const request = this.requests[0];
+        const json = JSON.stringify(request.body) + '\x00';
+        const buf = new TextEncoder('utf-8').encode(json);
+        if (this.pass) {
+          this.pass.crypt(buf);
+        }
+        this.ws.send(buf);
+      }
+    }
+
+    async request(module, func, ...params) {
       if (++this.lastId > 2147483647) {
         this.lastId = 1;
       }
