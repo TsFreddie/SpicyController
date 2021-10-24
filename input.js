@@ -48,7 +48,6 @@ async function newConnection() {
 }
 
 async function pullConnection() {
-  console.log(connections);
   if (connections.length > 0) {
     return connections.pop();
   }
@@ -259,18 +258,14 @@ async function processControl(e) {
       const x = touch.clientX;
       const y = touch.clientY;
 
-      /*
       const control = getControl(x, y);
       if (!control) continue;
-      */
 
-      for (const control of controls) {
-        if (control.type === 'Button') {
-          if (touch.force > 0 && !control.pressed) {
-            control.down();
-          } else if (touch.force <= 0 && control.pressed) {
-            control.up();
-          }
+      if (control.type === 'Button') {
+        if (touch.force > 0 && !control.pressed) {
+          control.down();
+        } else if (touch.force <= 0 && control.pressed) {
+          control.up();
         }
       }
     }
