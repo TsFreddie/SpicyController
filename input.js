@@ -30,25 +30,7 @@ function hide(id) {
 // -----------------
 //  CONNECTION POOL
 // -----------------
-async function getConnection() {
-  for (const conn of connections) {
-    if (!conn.waitingForResponse) {
-      if (conn.isConnected()) {
-        return conn;
-      } else {
-        const address = document.getElementById('address');
-        const port = document.getElementById('port');
-        const password = document.getElementById('password');
-        return new Promise(resolve => {
-          conn.connect(address.value, parseInt(port.value), password.value);
-          conn.onopen = () => {
-            resolve(conn);
-          };
-        });
-      }
-    }
-  }
-
+async function newConnection() {
   const address = document.getElementById('address');
   const port = document.getElementById('port');
   const password = document.getElementById('password');
@@ -63,6 +45,25 @@ async function getConnection() {
       reject(e);
     };
   });
+}
+async function populateConnection() {
+  for (const conn of connections) {
+    conn.close();
+  }
+  connections.splice(0, connections.length);
+  for (let i = 0; i < 20; i++) {
+    await newConnection();
+  }
+}
+
+function getConnection() {
+  for (const conn of connections) {
+    if (!conn.waitingForResponse) {
+      if (conn.isConnected()) {
+        return conn;
+      }
+    }
+  }
 }
 
 // ----------------
@@ -98,16 +99,12 @@ class Button {
 
   down() {
     this.pressed = true;
-    getConnection().then(conn => {
-      conn.buttons.write([this.btname, 1]);
-    });
+    getConnection().buttons.write([this.btname, 1]);
   }
 
   up() {
     this.pressed = false;
-    getConnection().then(conn => {
-      conn.buttons.write([this.btname, 0]);
-    });
+    getConnection().buttons.write([this.btname, 0]);
   }
 }
 
@@ -209,7 +206,7 @@ async function connect() {
   save('address', address.value);
   save('port', port.value);
   try {
-    await getConnection();
+    await populateConnection();
     hide('connectWin');
     showControlWindow();
   } catch (e) {
@@ -266,15 +263,18 @@ async function processControl(e) {
       const x = touch.clientX;
       const y = touch.clientY;
 
+      /*
       const control = getControl(x, y);
-
       if (!control) continue;
+      */
 
-      if (control.type === 'Button') {
-        if (touch.force > 0 && !control.pressed) {
-          control.down();
-        } else if (touch.force <= 0 && control.pressed) {
-          control.up();
+      for (const control of controls) {
+        if (control.type === 'Button') {
+          if (touch.force > 0 && !control.pressed) {
+            control.down();
+          } else if (touch.force <= 0 && control.pressed) {
+            control.up();
+          }
         }
       }
     }

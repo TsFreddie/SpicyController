@@ -120,7 +120,6 @@ const SpiceAPI = (() => {
           }
         };
         this.ws.onmessage = msg => {
-          console.log('get');
           const content = msg.data;
 
           if (content instanceof ArrayBuffer) {
@@ -233,7 +232,6 @@ const SpiceAPI = (() => {
     }
 
     processRequest() {
-      console.log(this.requests.length);
       if (
         this.ws.readyState === WebSocket.OPEN &&
         this.requests.length > 0 &&
