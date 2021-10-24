@@ -46,24 +46,13 @@ async function newConnection() {
     };
   });
 }
-async function populateConnection() {
-  for (const conn of connections) {
-    conn.close();
-  }
-  connections.splice(0, connections.length);
-  for (let i = 0; i < 20; i++) {
-    await newConnection();
-  }
-}
 
-function getConnection() {
-  for (const conn of connections) {
-    if (!conn.waitingForResponse) {
-      if (conn.isConnected()) {
-        return conn;
-      }
-    }
+async function pullConnection() {
+  console.log(connections);
+  if (connections.length > 0) {
+    return connections.pop();
   }
+  return newConnection();
 }
 
 // ----------------
@@ -84,7 +73,6 @@ class Button {
     this.element.style.top = y + '%';
     this.element.style.width = width + '%';
     this.element.style.height = height + '%';
-    this.conn = new SpiceAPI();
 
     this.pressed = false;
     this.processed = false;
@@ -99,12 +87,20 @@ class Button {
 
   down() {
     this.pressed = true;
-    getConnection().buttons.write([this.btname, 1]);
+    pullConnection().then(conn => {
+      conn.buttons.write([this.btname, 1]).then(() => {
+        connections.push(conn);
+      });
+    });
   }
 
   up() {
     this.pressed = false;
-    getConnection().buttons.write([this.btname, 0]);
+    pullConnection().then(conn => {
+      conn.buttons.write([this.btname, 0]).then(() => {
+        connections.push(conn);
+      });
+    });
   }
 }
 
@@ -206,7 +202,7 @@ async function connect() {
   save('address', address.value);
   save('port', port.value);
   try {
-    await populateConnection();
+    await newConnection();
     hide('connectWin');
     showControlWindow();
   } catch (e) {

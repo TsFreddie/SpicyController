@@ -9,11 +9,11 @@ const SpiceAPI = (() => {
       this.spice = spice;
     }
 
-    write(button, state) {
+    async write(button, state) {
       if (Array.isArray(button) && state == null) {
-        this.spice.request('buttons', 'write', button);
+        return this.spice.request('buttons', 'write', button);
       } else {
-        this.spice.request('buttons', 'write', [button, state]);
+        return this.spice.request('buttons', 'write', [button, state]);
       }
     }
 
@@ -21,8 +21,8 @@ const SpiceAPI = (() => {
       return this.spice.request('buttons', 'read');
     }
 
-    reset() {
-      this.spice.request('buttons', 'write_reset');
+    async reset() {
+      return this.spice.request('buttons', 'write_reset');
     }
   }
 
